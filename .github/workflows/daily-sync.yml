@@ -1,0 +1,41 @@
+name: Auto Sync Notion TIL
+
+on:
+  schedule:
+    # 매일 15:05 UTC (한국 시간 밤 12시 5분) 실행
+    - cron: '5 15 * * *'
+  workflow_dispatch: # 필요할 때 누를 수 있는 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📦 저장소 체크아웃
+        uses: actions/checkout@v6
+        
+      - name: 🐍 파이썬 환경 설정
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+          cache: 'pip' # 패키지 다운로드 캐싱으로 실행 속도 향상
+          
+      - name: 📥 의존성 설치
+        run: pip install requests
+
+      - name: 🚀 노션 일간 동기화 스크립트 실행
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          FETCH_MODE: "DAILY" 
+        run: python update_readme.py
+        
+      - name: 💾 변경사항 커밋 및 푸시
+        run: |
+          git config --global user.name "${{ secrets.GIT_USER_NAME || 'GitHub Action' }}"
+          git config --global user.email "${{ secrets.GIT_USER_EMAIL || 'action@github.com' }}"
+          git add .
+          git commit -m "docs: 🔄 노션 TIL 자동 동기화" || exit 0
+          git push
