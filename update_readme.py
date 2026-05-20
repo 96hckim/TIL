@@ -187,7 +187,7 @@ def update_main_readme_by_scanning(reset_mode):
             new_content += "\n</details>\n\n"
 
     if reset_mode == 'true' or not os.path.exists(README_FILE):
-        print(f"📄 [안내] 예쁜 템플릿으로 {README_FILE} 파일을 (재)생성합니다.")
+        print(f"📄 [안내] 베이스 템플릿으로 {README_FILE} 파일을 (재)생성합니다.")
         with open(README_FILE, "w", encoding="utf-8") as f:
             f.write(DEFAULT_README_TEMPLATE)
 
