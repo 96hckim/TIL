@@ -11,11 +11,12 @@ SAVE_DIR_ROOT = "TIL"
 NOTION_PROPERTY_TITLE = "제목"
 NOTION_PROPERTY_DATE = "날짜"
 README_FILE = "README.md"
+
+# 🌟 수정 1: README가 꼬이지 않도록 마커 설정
 MARKER_START = ""
 MARKER_END = ""
 TIMEZONE_HOURS = 9 
 
-# 초기화 모드일 때 사용될 기본 템플릿
 DEFAULT_README_TEMPLATE = f"""# 📝 My TIL Collection
 
 노션에서 작성된 TIL(Today I Learned)이 자동으로 업로드되는 저장소입니다.
@@ -28,8 +29,8 @@ DEFAULT_README_TEMPLATE = f"""# 📝 My TIL Collection
 # =======================================================
 # [시스템 설정]
 # =======================================================
-NOTION_TOKEN = os.environ['NOTION_TOKEN']
-DATABASE_ID = os.environ['NOTION_DATABASE_ID']
+NOTION_TOKEN = os.environ.get('NOTION_TOKEN', '')
+DATABASE_ID = os.environ.get('NOTION_DATABASE_ID', '')
 
 headers = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -38,7 +39,7 @@ headers = {
 }
 
 def get_page_blocks(page_id):
-    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
+    url = f"[https://api.notion.com/v1/blocks/](https://api.notion.com/v1/blocks/){page_id}/children"
     response = requests.get(url, headers=headers)
     return response.json().get('results', [])
 
@@ -74,7 +75,9 @@ def block_to_markdown(block):
         language = block['code'].get('language', 'text')
         rich_text = block['code'].get('rich_text', [])
         content = extract_text_from_rich_text(rich_text)
-        return f"```{language}\n{content}\n```\n\n"
+        # 🌟 수정 2: SyntaxError 방지를 위한 백틱 안전 처리
+        ticks = "`" * 3
+        return f"{ticks}{language}\n{content}\n{ticks}\n\n"
     elif b_type == 'image':
         url = block['image'].get('file', {}).get('url') or block['image'].get('external', {}).get('url') or ""
         return f"![Image]({url})\n\n"
@@ -93,7 +96,7 @@ def save_as_markdown(page, date_str):
     page_id = page['id']
     try:
         title = page['properties'][NOTION_PROPERTY_TITLE]['title'][0]['text']['content']
-    except:
+    except Exception:
         title = "제목없음"
     
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
@@ -157,24 +160,23 @@ def update_main_readme_by_scanning(reset_mode):
         if i == 0:
             new_content += f"### {month}\n"
             for item in items:
-                safe_path = item["path"].replace(" ", "%20")
+                # 경로 구분자 안전 처리 (Windows 환경 대비)
+                safe_path = item["path"].replace("\\", "/").replace(" ", "%20")
                 new_content += f"- [{item['date_str']} : {item['title']}](./{safe_path})\n"
             new_content += "\n"
         else:
             new_content += f"<details>\n"
             new_content += f"<summary>{month} ({len(items)}개)</summary>\n\n"
             for item in items:
-                safe_path = item["path"].replace(" ", "%20")
+                safe_path = item["path"].replace("\\", "/").replace(" ", "%20")
                 new_content += f"- [{item['date_str']} : {item['title']}](./{safe_path})\n"
             new_content += "\n</details>\n\n"
 
-    # RESET 모드이거나 파일이 없으면 템플릿으로 덮어쓰기
     if reset_mode == 'true' or not os.path.exists(README_FILE):
-        print(f">> [INFO] README.md를 초기화합니다. (RESET_MODE: {reset_mode})")
+        print(f">> [INFO] README.md 템플릿을 생성합니다.")
         with open(README_FILE, "w", encoding="utf-8") as f:
             f.write(DEFAULT_README_TEMPLATE)
 
-    # 기존 읽기
     with open(README_FILE, "r", encoding="utf-8") as f:
         readme_text = f.read()
 
@@ -182,10 +184,8 @@ def update_main_readme_by_scanning(reset_mode):
     end_idx = readme_text.find(MARKER_END)
 
     if start_idx == -1 or end_idx == -1:
-        # 마커가 없으면(혹은 깨졌으면) 그냥 뒤에 추가
         final_content = readme_text + f"\n\n{MARKER_START}\n{new_content}{MARKER_END}"
     else:
-        # 마커 사이 교체
         final_content = (
             readme_text[:start_idx + len(MARKER_START)] + 
             "\n" + new_content + 
@@ -197,13 +197,13 @@ def update_main_readme_by_scanning(reset_mode):
 
 def main():
     fetch_mode = os.environ.get('FETCH_MODE', 'DAILY')
-    reset_mode = os.environ.get('RESET_MODE', 'false').lower() # 문자열 'true'/'false' 처리
+    reset_mode = os.environ.get('RESET_MODE', 'false').lower()
     
-    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    url = f"[https://api.notion.com/v1/databases/](https://api.notion.com/v1/databases/){DATABASE_ID}/query"
     payload = {}
 
     if fetch_mode == "ALL":
-        print(">> [모드: 전체] 모든 데이터를 조회합니다.")
+        print(">> [모드: 전체] 데이터를 조회합니다.")
     else:
         kst = timezone(timedelta(hours=TIMEZONE_HOURS))
         target_date = datetime.now(kst).strftime("%Y-%m-%d")
@@ -221,20 +221,38 @@ def main():
             payload['start_cursor'] = next_cursor
             
         res = requests.post(url, headers=headers, json=payload)
+        
+        # 🌟 수정 3: API 접속이 실패하면 침묵하지 않고 즉시 에러 출력
+        if res.status_code != 200:
+            print(f"❌ [에러] 노션 접근 실패! (응답 코드: {res.status_code})")
+            print(f"상세 이유: {res.text}")
+            print("👉 토큰(NOTION_TOKEN)이 틀렸거나, 노션 표에 봇이 초대되지 않았습니다.")
+            exit(1)
+
         data = res.json()
         pages = data.get('results', [])
+        
+        if not pages:
+            print("⚠️ [안내] 조건에 맞는 노션 글을 0건 찾았습니다.")
         
         for page in pages:
             try:
                 props = page['properties']
-                if not props[NOTION_PROPERTY_DATE]['date']:
+                # 🌟 수정 4: 왜 건너뛰는지 명확하게 출력
+                if NOTION_PROPERTY_DATE not in props:
+                    print(f"❌ [건너뜀] 표에 '{NOTION_PROPERTY_DATE}' 열이 없습니다.")
                     continue
+                if not props[NOTION_PROPERTY_DATE]['date']:
+                    print(f"❌ [건너뜀] 글에 '{NOTION_PROPERTY_DATE}' 값이 비어있습니다.")
+                    continue
+                
                 page_date = props[NOTION_PROPERTY_DATE]['date']['start']
-            except KeyError:
+            except KeyError as e:
+                print(f"❌ [건너뜀] 속성 에러 발생: {e}")
                 continue
 
             title, filepath = save_as_markdown(page, page_date)
-            print(f"DEBUG: 저장 완료 - {page_date} : {title}")
+            print(f"✅ [저장 성공] {filepath} 생성 완료")
         
         has_more = data.get('has_more', False)
         next_cursor = data.get('next_cursor')
