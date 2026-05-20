@@ -16,7 +16,6 @@ MARKER_START = ""
 MARKER_END = ""
 TIMEZONE_HOURS = 9 
 
-# 🌟 수정 1: 훨씬 예쁘고 전문적인 README 템플릿 적용
 DEFAULT_README_TEMPLATE = f"""# 📝 My TIL (Today I Learned)
 
 > 매일매일 학습한 내용을 노션에 기록하고, GitHub Actions를 통해 자동으로 동기화하는 저장소입니다. 🚀
@@ -29,7 +28,6 @@ DEFAULT_README_TEMPLATE = f"""# 📝 My TIL (Today I Learned)
 <br/>
 
 ## 📚 TIL 기록 목록
-
 {MARKER_START}
 {MARKER_END}
 
@@ -55,11 +53,8 @@ headers = {
 def get_page_blocks(page_id):
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     response = requests.get(url, headers=headers)
-    
     if response.status_code != 200:
-        print(f"⚠️ [경고] 페이지 내용(블록)을 가져오지 못했습니다. ID: {page_id}")
         return []
-        
     return response.json().get('results', [])
 
 def extract_text_from_rich_text(rich_text_list):
@@ -67,10 +62,7 @@ def extract_text_from_rich_text(rich_text_list):
     for text in rich_text_list:
         plain = text.get('plain_text', '')
         href = text.get('href')
-        if href:
-            content += f"[{plain}]({href})"
-        else:
-            content += plain
+        content += f"[{plain}]({href})" if href else plain
     return content
 
 def block_to_markdown(block):
@@ -106,7 +98,6 @@ def block_to_markdown(block):
         return f"![Image]({url})\n\n"
         
     elif b_type == 'divider': return "---\n\n"
-    
     return ""
 
 def sanitize_filename(title):
@@ -141,7 +132,7 @@ def save_as_markdown(page, date_str):
     
     return title, filename
 
-def update_main_readme_by_scanning(reset_mode):
+def update_main_readme_by_scanning():
     if not os.path.exists(SAVE_DIR_ROOT):
         print("🔍 [안내] 아직 저장된 TIL 파일이 없어 README 업데이트를 건너뜁니다.")
         return
@@ -170,7 +161,6 @@ def update_main_readme_by_scanning(reset_mode):
         month_key = item["date"].strftime("%Y년 %m월")
         grouped.setdefault(month_key, []).append(item)
 
-    # 🌟 수정 2: 목록 텍스트 디자인 개선 (이모지 및 가독성 증가)
     new_content = ""
     for i, (month, items) in enumerate(grouped.items()):
         if i == 0:
@@ -188,39 +178,21 @@ def update_main_readme_by_scanning(reset_mode):
                 new_content += f"- 🗓️ **{date_dot}** | 🔗 [{item['title']}](./{safe_path})\n"
             new_content += "\n</details>\n\n"
 
-    # 🌟 수정 3: 기존의 망가진 README를 덮어쓰기 위해 로직 강화
-    if reset_mode == 'true' or not os.path.exists(README_FILE):
-        print(f"📄 [안내] 예쁜 템플릿으로 {README_FILE} 파일을 (재)생성합니다.")
-        with open(README_FILE, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_README_TEMPLATE)
-
-    with open(README_FILE, "r", encoding="utf-8") as f:
-        readme_text = f.read()
-
-    start_idx = readme_text.find(MARKER_START)
-    end_idx = readme_text.find(MARKER_END)
-
-    if start_idx == -1 or end_idx == -1:
-        print(f"⚠️ [경고] 기존 README 파일이 꼬여있습니다. 강제로 템플릿을 덮어씁니다.")
-        # 마커가 없으면 망가진 것으로 간주하고 아예 템플릿 전체를 새로 조립합니다.
-        final_content = DEFAULT_README_TEMPLATE.replace(MARKER_START + "\n" + MARKER_END, MARKER_START + "\n" + new_content + MARKER_END)
-    else:
-        final_content = (
-            readme_text[:start_idx + len(MARKER_START)] + 
-            "\n" + new_content + 
-            readme_text[end_idx:]
-        )
+    # 🌟 핵심 수정: 기존 파일 찾지 않고 무조건 템플릿 기반으로 강제 덮어쓰기
+    final_content = DEFAULT_README_TEMPLATE.replace(
+        f"{MARKER_START}\n{MARKER_END}", 
+        f"{MARKER_START}\n\n{new_content}\n{MARKER_END}"
+    )
 
     with open(README_FILE, "w", encoding="utf-8") as f:
         f.write(final_content)
-    print("✅ [성공] README.md 예쁘게 업데이트 완료!")
+    print("✅ [성공] 꼬인 것들 다 무시하고 README.md 정상 위치에 업데이트 완료!")
 
 # =======================================================
 # [4] 메인 실행 함수
 # =======================================================
 def main():
     fetch_mode = os.environ.get('FETCH_MODE', 'DAILY')
-    reset_mode = os.environ.get('RESET_MODE', 'false').lower()
     
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {}
@@ -249,43 +221,29 @@ def main():
         
         if res.status_code != 200:
             print(f"\n❌ [치명적 에러] 노션 서버가 요청을 거부했습니다.")
-            print(f"   - HTTP 응답 코드: {res.status_code}")
-            print(f"   - 에러 상세 내용: {res.text}")
-            print(f"   👉 해결방법: NOTION_DATABASE_ID가 표의 ID가 맞는지, 권한이 있는지 확인하세요.")
             sys.exit(1)
 
         data = res.json()
         pages = data.get('results', [])
         
-        if not pages:
-            print("⚠️ [안내] 조건에 맞는 데이터가 없습니다. (해당 날짜에 작성된 글이 없거나 필터 문제)")
-            
         for page in pages:
-            page_url = page.get('url', 'Unknown URL')
             try:
                 props = page.get('properties', {})
-                if NOTION_PROPERTY_DATE not in props:
-                    print(f"⏩ [건너뜀] 표에 '{NOTION_PROPERTY_DATE}' 열이 존재하지 않습니다. ({page_url})")
+                if NOTION_PROPERTY_DATE not in props or not props[NOTION_PROPERTY_DATE].get('date'):
                     continue
                 
-                date_data = props[NOTION_PROPERTY_DATE].get('date')
-                if not date_data:
-                    print(f"⏩ [건너뜀] '{NOTION_PROPERTY_DATE}' 칸이 비어있습니다. ({page_url})")
-                    continue
-                
-                page_date = date_data.get('start')
+                page_date = props[NOTION_PROPERTY_DATE]['date']['start']
                 title, filepath = save_as_markdown(page, page_date)
                 print(f"✅ [저장 완료] {filepath}")
                 
             except Exception as e:
-                print(f"❌ [에러 발생] 글을 처리하는 중 문제가 발생했습니다: {e} ({page_url})")
                 continue
         
         has_more = data.get('has_more', False)
         next_cursor = data.get('next_cursor')
 
     print("--- 노션 데이터 추출 종료 ---\n")
-    update_main_readme_by_scanning(reset_mode)
+    update_main_readme_by_scanning()
 
 if __name__ == "__main__":
     main()
