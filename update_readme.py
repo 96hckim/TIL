@@ -11,10 +11,8 @@ SAVE_DIR_ROOT = "TIL"
 NOTION_PROPERTY_TITLE = "제목"
 NOTION_PROPERTY_DATE = "날짜"
 README_FILE = "README.md"
-
-# 🌟 수정됨: README 파일이 깨지지 않도록 마커 추가
-MARKER_START = "<!-- TIL_LIST_START -->"
-MARKER_END = "<!-- TIL_LIST_END -->"
+MARKER_START = ""
+MARKER_END = ""
 TIMEZONE_HOURS = 9 
 
 # 초기화 모드일 때 사용될 기본 템플릿
@@ -76,8 +74,7 @@ def block_to_markdown(block):
         language = block['code'].get('language', 'text')
         rich_text = block['code'].get('rich_text', [])
         content = extract_text_from_rich_text(rich_text)
-        return f"```{language}\n{content}\n
-```\n\n"
+        return f"```{language}\n{content}\n```\n\n"
     elif b_type == 'image':
         url = block['image'].get('file', {}).get('url') or block['image'].get('external', {}).get('url') or ""
         return f"![Image]({url})\n\n"
@@ -160,22 +157,24 @@ def update_main_readme_by_scanning(reset_mode):
         if i == 0:
             new_content += f"### {month}\n"
             for item in items:
-                safe_path = item["path"].replace(" ", "%20").replace("\\", "/")
+                safe_path = item["path"].replace(" ", "%20")
                 new_content += f"- [{item['date_str']} : {item['title']}](./{safe_path})\n"
             new_content += "\n"
         else:
             new_content += f"<details>\n"
             new_content += f"<summary>{month} ({len(items)}개)</summary>\n\n"
             for item in items:
-                safe_path = item["path"].replace(" ", "%20").replace("\\", "/")
+                safe_path = item["path"].replace(" ", "%20")
                 new_content += f"- [{item['date_str']} : {item['title']}](./{safe_path})\n"
             new_content += "\n</details>\n\n"
 
+    # RESET 모드이거나 파일이 없으면 템플릿으로 덮어쓰기
     if reset_mode == 'true' or not os.path.exists(README_FILE):
         print(f">> [INFO] README.md를 초기화합니다. (RESET_MODE: {reset_mode})")
         with open(README_FILE, "w", encoding="utf-8") as f:
             f.write(DEFAULT_README_TEMPLATE)
 
+    # 기존 읽기
     with open(README_FILE, "r", encoding="utf-8") as f:
         readme_text = f.read()
 
@@ -183,8 +182,10 @@ def update_main_readme_by_scanning(reset_mode):
     end_idx = readme_text.find(MARKER_END)
 
     if start_idx == -1 or end_idx == -1:
+        # 마커가 없으면(혹은 깨졌으면) 그냥 뒤에 추가
         final_content = readme_text + f"\n\n{MARKER_START}\n{new_content}{MARKER_END}"
     else:
+        # 마커 사이 교체
         final_content = (
             readme_text[:start_idx + len(MARKER_START)] + 
             "\n" + new_content + 
@@ -196,7 +197,7 @@ def update_main_readme_by_scanning(reset_mode):
 
 def main():
     fetch_mode = os.environ.get('FETCH_MODE', 'DAILY')
-    reset_mode = os.environ.get('RESET_MODE', 'false').lower()
+    reset_mode = os.environ.get('RESET_MODE', 'false').lower() # 문자열 'true'/'false' 처리
     
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {}
@@ -205,8 +206,7 @@ def main():
         print(">> [모드: 전체] 모든 데이터를 조회합니다.")
     else:
         kst = timezone(timedelta(hours=TIMEZONE_HOURS))
-        # 🌟 수정됨: timedelta(days=1) 삭제 -> "오늘 날짜" 기준 검색
-        target_date = datetime.now(kst).strftime("%Y-%m-%d")
+        target_date = (datetime.now(kst) - timedelta(days=1)).strftime("%Y-%m-%d")
         print(f">> [모드: 일간] {target_date} 데이터를 조회합니다.")
         payload["filter"] = {
             "property": NOTION_PROPERTY_DATE,
