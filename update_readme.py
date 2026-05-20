@@ -16,7 +16,6 @@ MARKER_START = "<!-- TIL_LIST_START -->"
 MARKER_END = "<!-- TIL_LIST_END -->"
 TIMEZONE_HOURS = 9 
 
-# 🌟 수정 1: 훨씬 예쁘고 전문적인 README 템플릿 적용
 DEFAULT_README_TEMPLATE = f"""# 📝 My TIL (Today I Learned)
 
 > 매일매일 학습한 내용을 노션에 기록하고, GitHub Actions를 통해 자동으로 동기화하는 저장소입니다. 🚀
@@ -200,7 +199,6 @@ def update_main_readme_by_scanning(reset_mode):
 
     if start_idx == -1 or end_idx == -1:
         print(f"⚠️ [경고] 기존 README 파일이 꼬여있습니다. 강제로 템플릿을 덮어씁니다.")
-        # 마커가 없으면 망가진 것으로 간주하고 아예 템플릿 전체를 새로 조립합니다.
         final_content = DEFAULT_README_TEMPLATE.replace(MARKER_START + "\n" + MARKER_END, MARKER_START + "\n" + new_content + MARKER_END)
     else:
         final_content = (
