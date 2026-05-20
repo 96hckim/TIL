@@ -12,7 +12,6 @@ NOTION_PROPERTY_TITLE = "제목"
 NOTION_PROPERTY_DATE = "날짜"
 README_FILE = "README.md"
 
-# 🌟 수정 1: README가 꼬이지 않도록 마커 설정
 MARKER_START = ""
 MARKER_END = ""
 TIMEZONE_HOURS = 9 
@@ -39,7 +38,7 @@ headers = {
 }
 
 def get_page_blocks(page_id):
-    url = f"[https://api.notion.com/v1/blocks/](https://api.notion.com/v1/blocks/){page_id}/children"
+    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     response = requests.get(url, headers=headers)
     return response.json().get('results', [])
 
@@ -75,7 +74,6 @@ def block_to_markdown(block):
         language = block['code'].get('language', 'text')
         rich_text = block['code'].get('rich_text', [])
         content = extract_text_from_rich_text(rich_text)
-        # 🌟 수정 2: SyntaxError 방지를 위한 백틱 안전 처리
         ticks = "`" * 3
         return f"{ticks}{language}\n{content}\n{ticks}\n\n"
     elif b_type == 'image':
@@ -160,7 +158,6 @@ def update_main_readme_by_scanning(reset_mode):
         if i == 0:
             new_content += f"### {month}\n"
             for item in items:
-                # 경로 구분자 안전 처리 (Windows 환경 대비)
                 safe_path = item["path"].replace("\\", "/").replace(" ", "%20")
                 new_content += f"- [{item['date_str']} : {item['title']}](./{safe_path})\n"
             new_content += "\n"
@@ -199,7 +196,7 @@ def main():
     fetch_mode = os.environ.get('FETCH_MODE', 'DAILY')
     reset_mode = os.environ.get('RESET_MODE', 'false').lower()
     
-    url = f"[https://api.notion.com/v1/databases/](https://api.notion.com/v1/databases/){DATABASE_ID}/query"
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {}
 
     if fetch_mode == "ALL":
@@ -222,7 +219,6 @@ def main():
             
         res = requests.post(url, headers=headers, json=payload)
         
-        # 🌟 수정 3: API 접속이 실패하면 침묵하지 않고 즉시 에러 출력
         if res.status_code != 200:
             print(f"❌ [에러] 노션 접근 실패! (응답 코드: {res.status_code})")
             print(f"상세 이유: {res.text}")
@@ -238,7 +234,6 @@ def main():
         for page in pages:
             try:
                 props = page['properties']
-                # 🌟 수정 4: 왜 건너뛰는지 명확하게 출력
                 if NOTION_PROPERTY_DATE not in props:
                     print(f"❌ [건너뜀] 표에 '{NOTION_PROPERTY_DATE}' 열이 없습니다.")
                     continue
