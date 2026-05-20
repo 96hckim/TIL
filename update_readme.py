@@ -225,7 +225,7 @@ def main():
         print("🌐 [모드: 전체] 노션 표의 모든 데이터를 조회합니다.")
     else:
         kst = timezone(timedelta(hours=TIMEZONE_HOURS))
-        target_date = datetime.now(kst).strftime("%Y-%m-%d")
+        target_date = (datetime.now(kst) - timedelta(days=1)).strftime("%Y-%m-%d")
         print(f"📅 [모드: 일간] {target_date} 날짜의 데이터를 조회합니다.")
         payload["filter"] = {
             "property": NOTION_PROPERTY_DATE,
