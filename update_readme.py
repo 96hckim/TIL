@@ -12,8 +12,8 @@ NOTION_PROPERTY_TITLE = "제목"
 NOTION_PROPERTY_DATE = "날짜"
 README_FILE = "README.md"
 
-MARKER_START = "<!-- TIL_LIST_START -->"
-MARKER_END = "<!-- TIL_LIST_END -->"
+MARKER_START = ""
+MARKER_END = ""
 TIMEZONE_HOURS = 9 
 
 DEFAULT_README_TEMPLATE = f"""# 📝 My TIL (Today I Learned)
@@ -105,6 +105,28 @@ def block_to_markdown(block):
         return f"![Image]({url})\n\n"
         
     elif b_type == 'divider': return "---\n\n"
+
+    # 🌟 새롭게 추가된 테이블(표) 처리 로직
+    elif b_type == 'table':
+        table_id = block['id']
+        rows = get_page_blocks(table_id) # 테이블 껍데기 안의 행(row)들을 추가로 가져옴
+        table_md = ""
+        
+        for i, row in enumerate(rows):
+            if row.get('type') == 'table_row':
+                cells = row['table_row']['cells']
+                row_md = "|"
+                for cell in cells:
+                    # 마크다운 표는 한 줄로 작성되어야 하므로 표 안의 줄바꿈(\n)을 <br> 태그로 변경
+                    cell_text = extract_text_from_rich_text(cell).replace('\n', '<br>')
+                    row_md += f" {cell_text} |"
+                table_md += row_md + "\n"
+                
+                # 마크다운 표 문법: 첫 줄(헤더) 아래에 구분선(|---|---|) 추가
+                if i == 0:
+                    table_md += "|" + "|".join(["---"] * len(cells)) + "|\n"
+                    
+        return table_md + "\n"
     
     return ""
 
