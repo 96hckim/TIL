@@ -12,8 +12,8 @@ NOTION_PROPERTY_TITLE = "제목"
 NOTION_PROPERTY_DATE = "날짜"
 README_FILE = "README.md"
 
-MARKER_START = "<!-- TIL_LIST_START -->"
-MARKER_END = "<!-- TIL_LIST_END -->"
+MARKER_START = ""
+MARKER_END = ""
 TIMEZONE_HOURS = 9 
 
 DEFAULT_README_TEMPLATE = f"""# 📝 My TIL (Today I Learned)
@@ -72,7 +72,10 @@ def extract_text_from_rich_text(rich_text_list):
             content += plain
     return content
 
-def block_to_markdown(block):
+def block_to_markdown(block, indent=""):
+    """
+    indent 인자를 추가하여 토글 내부 자식 블록들이 들여쓰기 처리되도록 개선했습니다.
+    """
     b_type = block.get('type')
     text_blocks = ['paragraph', 'heading_1', 'heading_2', 'heading_3', 'bulleted_list_item', 'numbered_list_item', 'to_do', 'toggle', 'quote', 'callout']
     
@@ -80,31 +83,40 @@ def block_to_markdown(block):
         rich_text = block[b_type].get('rich_text', [])
         content = extract_text_from_rich_text(rich_text)
         
-        if b_type == 'paragraph': return content + "\n\n"
-        elif b_type == 'heading_1': return f"# {content}\n\n"
-        elif b_type == 'heading_2': return f"## {content}\n\n"
-        elif b_type == 'heading_3': return f"### {content}\n\n"
-        elif b_type == 'bulleted_list_item': return f"- {content}\n"
-        elif b_type == 'numbered_list_item': return f"1. {content}\n"
+        if b_type == 'paragraph': return f"{indent}{content}\n\n"
+        elif b_type == 'heading_1': return f"{indent}# {content}\n\n"
+        elif b_type == 'heading_2': return f"{indent}## {content}\n\n"
+        elif b_type == 'heading_3': return f"{indent}### {content}\n\n"
+        elif b_type == 'bulleted_list_item': return f"{indent}- {content}\n"
+        elif b_type == 'numbered_list_item': return f"{indent}1. {content}\n"
         elif b_type == 'to_do':
             checked = "[x]" if block['to_do'].get('checked') else "[ ]"
-            return f"- {checked} {content}\n"
-        elif b_type == 'quote': return f"> {content}\n\n"
-        elif b_type == 'callout': return f"> 💡 {content}\n\n"
-        elif b_type == 'toggle': return f"- ▶ {content}\n"
+            return f"{indent}- {checked} {content}\n"
+        elif b_type == 'quote': return f"{indent}> {content}\n\n"
+        elif b_type == 'callout': return f"{indent}> 💡 {content}\n\n"
+        
+        elif b_type == 'toggle': 
+            toggle_md = f"{indent}- ▶ {content}\n"
+            if block.get('has_children', False):
+                toggle_id = block['id']
+                child_blocks = get_page_blocks(toggle_id)
+                for child in child_blocks:
+                    toggle_md += block_to_markdown(child, indent + "  ")
+            return toggle_md
         
     elif b_type == 'code':
         language = block['code'].get('language', 'text')
         rich_text = block['code'].get('rich_text', [])
         content = extract_text_from_rich_text(rich_text)
         ticks = "`" * 3
-        return f"{ticks}{language}\n{content}\n{ticks}\n\n"
+        indented_content = "\n".join([f"{indent}{line}" for line in content.splitlines()])
+        return f"{indent}{ticks}{language}\n{indented_content}\n{indent}{ticks}\n\n"
         
     elif b_type == 'image':
         url = block['image'].get('file', {}).get('url') or block['image'].get('external', {}).get('url') or ""
-        return f"![Image]({url})\n\n"
+        return f"{indent}![Image]({url})\n\n"
         
-    elif b_type == 'divider': return "---\n\n"
+    elif b_type == 'divider': return f"{indent}---\n\n"
 
     elif b_type == 'table':
         table_id = block['id']
@@ -114,14 +126,14 @@ def block_to_markdown(block):
         for i, row in enumerate(rows):
             if row.get('type') == 'table_row':
                 cells = row['table_row']['cells']
-                row_md = "|"
+                row_md = f"{indent}|"
                 for cell in cells:
                     cell_text = extract_text_from_rich_text(cell).replace('\n', '<br>')
                     row_md += f" {cell_text} |"
                 table_md += row_md + "\n"
                 
                 if i == 0:
-                    table_md += "|" + "|".join(["---"] * len(cells)) + "|\n"
+                    table_md += f"{indent}|" + "|".join(["---"] * len(cells)) + "|\n"
                     
         return table_md + "\n"
     
